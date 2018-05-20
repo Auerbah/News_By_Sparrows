@@ -2,8 +2,12 @@ package main
 
 import (
 	"log"
+	"fmt"
 	"net/http"
 	"os"
+	"bufio"
+	"strings"
+	"golang.org/x/net/html"
 	//"github.com/russross/blackfriday"
 	//"github.com/gin-gonic/gin"
 	_ "github.com/heroku/x/hmetrics/onload"
@@ -28,10 +32,10 @@ func mainPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//inputQuery := r.FormValue("search")
-	//w.Write([]byte(search(inputQuery)))
+	inputQuery := r.FormValue("search")
+	w.Write([]byte(search(inputQuery)))
 }
-/*
+
 var authPageTmpl = []byte(`
 <html>
 	<body>
@@ -165,7 +169,7 @@ func search(query string) string{
 	}
 	return result
 }
-*/
+
 func main() {
 
 	port := os.Getenv("PORT")
@@ -174,9 +178,9 @@ func main() {
 		log.Fatal("$PORT must be set")
 	}
 
-	//http.HandleFunc("/reg", regPage)
+	http.HandleFunc("/reg", regPage)
 
-	//http.HandleFunc("/auth", authPage)
+	http.HandleFunc("/auth", authPage)
 
 	http.HandleFunc("/", mainPage)
 

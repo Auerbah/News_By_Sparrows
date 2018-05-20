@@ -59,6 +59,18 @@
 			"revision": "d9558e5c97f85372afee28cf2b6059d7d3818919"
 		},
 		{
+			"checksumSHA1": "6WbIuKGVDXQWwDjjEYx4fzLfQO8=",
+			"path": "golang.org/x/net/html",
+			"revision": "57065200b4b034a1c8ad54ff77069408c2218ae6",
+			"revisionTime": "2018-05-18T17:41:52Z"
+		},
+		{
+			"checksumSHA1": "xwhqe/igHQrY3IhqDwzo6j7qpm8=",
+			"path": "golang.org/x/net/html/atom",
+			"revision": "57065200b4b034a1c8ad54ff77069408c2218ae6",
+			"revisionTime": "2018-05-18T17:41:52Z"
+		},
+		{
 			"checksumSHA1": "P7dBpV3QA/3GJWGNwb9Hn3BzCQs=",
 			"comment": "v5.9.1",
 			"path": "gopkg.in/bluesuncorp/validator.v5",
