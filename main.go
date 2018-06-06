@@ -1,213 +1,199 @@
 package main
 
 import (
-	"log"
-	"fmt"
-	"net/http"
+"database/sql"
+"fmt"
+"html/template"
+"net/http"
+"strconv"
+
+"github.com/gorilla/mux"
+
+_ "github.com/go-sql-driver/mysql"
 	"os"
-	"bufio"
-	"strings"
-	"golang.org/x/net/html"
-	//"github.com/russross/blackfriday"
-	//"github.com/gin-gonic/gin"
-	_ "github.com/heroku/x/hmetrics/onload"
+	"log"
 )
 
-var mainPageTmpl = []byte(`
-<html>
-	<body>
-	<b>Welcome to Sparrow's News</b>
-	<br><a href="/auth">Sign Up</a> or <a href="/reg">Sign In</a>
-	<form action="/" method="post">
-		<input type="text" name="search">
-		<br><input type="submit" value="Search"></br>
-	</form>
-	</body>
-</html>
-`)
-
-func mainPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Write(mainPageTmpl)
-		return
-	}
-
-	inputQuery := r.FormValue("search")
-	w.Write([]byte(search(inputQuery)))
+type Item struct {
+	Id          int
+	Title       string
+	Description string
+	Updated     sql.NullString
 }
 
-var authPageTmpl = []byte(`
-<html>
-	<body>
-	<b>Sign up with your existing account</b>
-	<br></br>
-	<form action="/auth" method="post">
-		Login: <input type="text" name="login">
-		<br>Password: <input type="password" name="password"></br>
-		<br><input type="submit" value="Login"></br>
-	</form>
-	</body>
-</html>
-`)
-
-func authPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Write(authPageTmpl)
-		return
-	}
-	inputLogin := r.FormValue("login")
-	inputPassword := r.FormValue("password")
-	if !checkPassword(inputLogin, inputPassword) {
-		fmt.Fprintln(w, "Uncorrect password or user " + "\"" + inputLogin + "\"" + " not exists")
-		return
-	}
-	fmt.Fprintln(w, "You authorized with account:\nLogin: "+inputLogin+"\nPassword: "+inputPassword)
+type Handler struct {
+	DB   *sql.DB
+	Tmpl *template.Template
 }
 
-var regPageTmpl = []byte(`
-<html>
-	<body>
-	<b>Register your new account</b>
-	<br></br>
-	<form action="/reg" method="post">
-		Login: <input type="text" name="login">
-		Password: <input type="password" name="password">
-		<input type="submit" value="Create">
-	</form>
-	</body>
-</html>
-`)
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
-func regPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Write(regPageTmpl)
-		return
+	items := []*Item{}
+
+	rows, err := h.DB.Query("SELECT id, title, updated FROM items")
+	__err_panic(err)
+	for rows.Next() {
+		post := &Item{}
+		err = rows.Scan(&post.Id, &post.Title, &post.Updated)
+		__err_panic(err)
+		items = append(items, post)
 	}
-	inputLogin := r.FormValue("login")
-	inputPassword := r.FormValue("password")
-	if !checkDB(inputLogin, inputPassword) {
-		fmt.Fprintln(w, "User: \"" + inputLogin+"\" already exists")
-		return
-	}
-	fmt.Fprintln(w, "You create new account:\nLogin: "+inputLogin+"\nPassword: "+inputPassword)
-}
+	// надо закрывать соединение, иначе будет течь
+	rows.Close()
 
-
-func checkDB(inputLogin string, inputPassword string) bool{
-	fileDB, err := os.OpenFile("BD.txt", os.O_CREATE|os.O_APPEND, 0644)
+	err = h.Tmpl.ExecuteTemplate(w, "index.html", struct {
+		Items []*Item
+	}{
+		Items: items,
+	})
 	if err != nil {
-		return false
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	defer fileDB.Close()
-	users := make(map[string]string, 0)
-	scanner := bufio.NewScanner(fileDB)
-	for scanner.Scan() {
-		user := strings.Split(scanner.Text(), " ")
-		users[user[0]] = user[1]
-	}
-	_, mNameExist := users[inputLogin]
-	if mNameExist {
-		return false
-	}
-	fileDB.WriteString(inputLogin + " " + inputPassword + "\n")
-
-	return true
 }
 
-func checkPassword(inputLogin string, inputPassword string) bool{
-	fileDB, err := os.Open("BD.txt")
+func (h *Handler) AddForm(w http.ResponseWriter, r *http.Request) {
+	err := h.Tmpl.ExecuteTemplate(w, "create.html", nil)
 	if err != nil {
-		return false
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	defer fileDB.Close()
-	users := make(map[string]string, 0)
-	scanner := bufio.NewScanner(fileDB)
-	for scanner.Scan() {
-		user := strings.Split(scanner.Text(), " ")
-		users[user[0]] = user[1]
-	}
-	mPassword, mNameExist := users[inputLogin]
-	if mNameExist && mPassword == inputPassword {
-		return true
-	}
-
-	return false
 }
 
-func search(query string) string{
-	resp, _ := http.Get("https://habr.com/search/?q=%5B"+query+"%5D")
+func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
+	// в целям упрощения примера пропущена валидация
+	result, err := h.DB.Exec(
+		"INSERT INTO items (`title`, `description`) VALUES (?, ?)",
+		r.FormValue("title"),
+		r.FormValue("description"),
+	)
+	__err_panic(err)
 
-	result := ""
+	affected, err := result.RowsAffected()
+	__err_panic(err)
+	lastID, err := result.LastInsertId()
+	__err_panic(err)
 
-	z := html.NewTokenizer(resp.Body)
+	fmt.Println("Insert - RowsAffected", affected, "LastInsertId: ", lastID)
 
-	for {
-		tt := z.Next()
-		switch {
-		case tt == html.ErrorToken:
-			return result
-		case tt == html.StartTagToken:
-			t := z.Token()
-			if t.Data == "a" {
-				href := ""
-				title := ""
-				for _, a := range t.Attr {
-					if a.Key == "href" {
-						href = a.Val
-					}
-					if a.Key == "class" && a.Val == "post__title_link" {
-						tt = z.Next()
-						t := z.Token()
-						title = t.Data
-						result += "<br><a href=" + href + ">" + title + "</a></br>"
-						fmt.Printf("<a href=%s>%s</a>\n", href, title)
-						break
-					}
-				}
-			}
-		}
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	__err_panic(err)
+
+	post := &Item{}
+	// QueryRow сам закрывает коннект
+	row := h.DB.QueryRow("SELECT id, title, updated, description FROM items WHERE id = ?", id)
+
+	err = row.Scan(&post.Id, &post.Title, &post.Updated, &post.Description)
+	__err_panic(err)
+
+	err = h.Tmpl.ExecuteTemplate(w, "edit.html", post)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	return result
+}
+
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	__err_panic(err)
+
+	// в целям упрощения примера пропущена валидация
+	result, err := h.DB.Exec(
+		"UPDATE items SET"+
+			"`title` = ?"+
+			",`description` = ?"+
+			",`updated` = ?"+
+			"WHERE id = ?",
+		r.FormValue("title"),
+		r.FormValue("description"),
+		"rvasily",
+		id,
+	)
+	__err_panic(err)
+
+	affected, err := result.RowsAffected()
+	__err_panic(err)
+
+	fmt.Println("Update - RowsAffected", affected)
+
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	__err_panic(err)
+
+	result, err := h.DB.Exec(
+		"DELETE FROM items WHERE id = ?",
+		id,
+	)
+	__err_panic(err)
+
+	affected, err := result.RowsAffected()
+	__err_panic(err)
+
+	fmt.Println("Delete - RowsAffected", affected)
+
+	w.Header().Set("Content-type", "application/json")
+	resp := `{"affected": ` + strconv.Itoa(int(affected)) + `}`
+	w.Write([]byte(resp))
 }
 
 func main() {
-
 	port := os.Getenv("PORT")
 
 	if port == "" {
 		log.Fatal("$PORT must be set")
 	}
 
-	http.HandleFunc("/reg", regPage)
+	// основные настройки к базе
+	dsn := "pb9zojk8hpvfjwes:u4pv3tjbu4ztvzf3@tcp(nuskkyrsgmn5rw8c.cbetxkdyhwsb.us-east-1.rds.amazonaws.com:3306)/jn1wuqllqn8o60ya?"
+	// указываем кодировку
+	dsn += "&charset=utf8"
+	// отказываемся от prapared statements
+	// параметры подставляются сразу
+	dsn += "&interpolateParams=true"
 
-	http.HandleFunc("/auth", authPage)
+	db, err := sql.Open("mysql", dsn)
 
-	http.HandleFunc("/", mainPage)
+	db.SetMaxOpenConns(10)
 
-	//fmt.Println("starting server at :8080")
+	err = db.Ping() // вот тут будет первое подключение к базе
+	if err != nil {
+		panic(err)
+	}
 
-	http.ListenAndServe(":" + port, nil)
+	handlers := &Handler{
+		DB:   db,
+		Tmpl: template.Must(template.ParseGlob("crud_templates/*")),
+	}
+
+	// в целям упрощения примера пропущена авторизация и csrf
+	r := mux.NewRouter()
+	r.HandleFunc("/", handlers.List).Methods("GET")
+	r.HandleFunc("/items", handlers.List).Methods("GET")
+	r.HandleFunc("/items/new", handlers.AddForm).Methods("GET")
+	r.HandleFunc("/items/new", handlers.Add).Methods("POST")
+	r.HandleFunc("/items/{id}", handlers.Edit).Methods("GET")
+	r.HandleFunc("/items/{id}", handlers.Update).Methods("POST")
+	r.HandleFunc("/items/{id}", handlers.Delete).Methods("DELETE")
+
+	fmt.Println("starting server at :" + port)
+	http.ListenAndServe(":" + port, r)
 }
 
-/*func main() {
-	port := os.Getenv("PORT")
-
-	if port == "" {
-		log.Fatal("$PORT must be set")
+// не используйте такой код в прошакшене
+// ошибка должна всегда явно обрабатываться
+func __err_panic(err error) {
+	if err != nil {
+		panic(err)
 	}
+}
 
-	router := gin.New()
-	router.Use(gin.Logger())
-	router.LoadHTMLGlob("templates/*.tmpl.html")
-	router.Static("/static", "static")
-
-	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.tmpl.html", nil)
-	})
-
-	router.GET("/mark", func(c *gin.Context) {
-		c.String(http.StatusOK, string(blackfriday.MarkdownBasic([]byte("**hi!**"))))
-	})
-
-	router.Run(":" + port)
-}*/
