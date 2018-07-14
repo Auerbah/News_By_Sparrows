@@ -13,3 +13,4 @@ CREATE TABLE `requests` (
 
 INSERT INTO `requests` (`id`, `login`, `tag`) VALUES
 (1,	'user1',	'golang');
+

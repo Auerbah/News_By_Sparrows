@@ -1,14 +1,14 @@
 package main
 
 import (
-"database/sql"
-"fmt"
-"html/template"
-"net/http"
-"golang.org/x/net/html"
-"github.com/gorilla/mux"
+	"database/sql"
+	"fmt"
+	"html/template"
+	"net/http"
+	"golang.org/x/net/html"
+	"github.com/gorilla/mux"
 
-_ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"os"
 	"log"
 	"time"
@@ -16,40 +16,44 @@ _ "github.com/go-sql-driver/mysql"
 	"crypto/sha256"
 )
 
+// Структура пользователя
 type User struct {
-	Id          int
-	Login       string
-	Password	string
-	Tags     	sql.NullString
+	Id       int
+	Login    string
+	Password string
+	Tags     sql.NullString
 }
 
+// Структура статьи
 type Article struct {
-	Title string
-	Href string
+	Title       string
+	Href        string
 	Description string
-	Date string
+	Date        string
 }
 
+// Структура запроса, введенного пользователя
 type Request struct {
-	Id          int
-	Login       sql.NullString
-	Tag     	string
+	Id    int
+	Login sql.NullString
+	Tag   string
 }
 
+// Структура сессия, нужна для правильной генерации главной страницы. Там сложная логика
 type Session struct {
 	Authorized bool
-	User string
-	Tags []string
-	Articles []Article
+	User       string
+	Tags       []string
+	Articles   []Article
 }
 
+// Структура обработчика запросов, указываем там базу данных и путь к шаблонам
 type Handler struct {
 	DB   *sql.DB
 	Tmpl *template.Template
 }
 
 func (h *Handler) Users(w http.ResponseWriter, r *http.Request) {
-
 	users := []*User{}
 
 	rows, err := h.DB.Query("SELECT id, login, password, tags FROM users")
@@ -102,8 +106,8 @@ func (h *Handler) AddUserForm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func search(query string) []Article{
-	resp, _ := http.Get("https://habr.com/search/?target_type=posts&q=%5B"+query+"%5D&order_by=date")
+func search(query string) []Article {
+	resp, _ := http.Get("https://habr.com/search/?target_type=posts&q=%5B" + query + "%5D&order_by=date")
 
 	articles := []Article{}
 	z := html.NewTokenizer(resp.Body)
@@ -185,30 +189,33 @@ func parseTags(tags string) []string {
 }
 
 func (h *Handler) Main(w http.ResponseWriter, r *http.Request) {
-
+	// Создаем новую сессию, по умолчанию пользователь не авторизован
 	session := Session{
 		Authorized: false,
 	}
-
+	// Если в куке есть поле login, то берем его в качестве авторизации
 	login, err := r.Cookie("login")
 	loggedIn := (err != http.ErrNoCookie)
+	// Если такая кука есть, то делаем следующее
 	if loggedIn {
+		// Извлекаем значение куки tags
 		tags, err := r.Cookie("tags")
+		// Присваиваем в нашей сессии имя пользователя и теги и делаем его авторизованным
 		session.User = login.Value
 		session.Tags = parseTags(tags.Value)
 		session.Authorized = true
+		// Если вдруг кука с тегами куда-то потерялась ставим ее пустой
 		settedCookies := (err != http.ErrNoCookie)
 		if !settedCookies {
 			session.Tags = nil
 		}
-
 	}
-
+	// По всем тегам выполняем поисковые запросы
 	for _, tag := range session.Tags {
 		searchResult := search(tag)
 		session.Articles = append(session.Articles, searchResult...)
 	}
-
+	// Выполняем шаблон main.html и отдаем его пользователю
 	err = h.Tmpl.ExecuteTemplate(w, "main.html", session)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -284,7 +291,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-
 func (h *Handler) EditUser(w http.ResponseWriter, r *http.Request) {
 	login, _ := r.Cookie("login")
 	rows, err := h.DB.Query("SELECT id, login, tags FROM users WHERE login = ?", login.Value)
@@ -302,7 +308,6 @@ func (h *Handler) EditUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-
 
 	// в целям упрощения примера пропущена валидация
 	result, err := h.DB.Exec(
@@ -374,8 +379,8 @@ func (h *Handler) Requests(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 func main() {
+	//ПОлучение порта, на котором будет работать сервер
 	port := os.Getenv("PORT")
 
 	if port == "" {
@@ -394,7 +399,8 @@ func main() {
 
 	db.SetMaxOpenConns(10)
 
-	err = db.Ping() // вот тут будет первое подключение к базе
+	// первое подключение к базе
+	err = db.Ping()
 	if err != nil {
 		panic(err)
 	}
@@ -404,28 +410,33 @@ func main() {
 		Tmpl: template.Must(template.ParseGlob("crud_templates/*")),
 	}
 
-	// в целям упрощения примера пропущена авторизация и csrf
 	r := mux.NewRouter()
+	// Обработка основной страницы сайта
 	r.HandleFunc("/", handlers.Main).Methods("GET")
 	r.HandleFunc("/", handlers.MainPost).Methods("POST")
+	// Обработка страницы, показывающей список зарегестрированных пользователей
 	r.HandleFunc("/users", handlers.Users).Methods("GET")
+	// Обработка страницы регистрации новых пользователей
 	r.HandleFunc("/reg", handlers.AddUserForm).Methods("GET")
 	r.HandleFunc("/reg", handlers.AddUser).Methods("POST")
+	// Обработка страницы авторизации
 	r.HandleFunc("/auth", handlers.AuthForm).Methods("GET")
 	r.HandleFunc("/auth", handlers.Auth).Methods("POST")
+	// Обработка выхода из пользователя
 	r.HandleFunc("/logout", handlers.Logout).Methods("GET")
+	// Обработка страницы изменения пользователя
 	r.HandleFunc("/edituser", handlers.EditUser).Methods("GET")
 	r.HandleFunc("/edituser", handlers.UpdateUser).Methods("POST")
+	// Обработка страницы, показывающей запросы всех пользователей
 	r.HandleFunc("/requests", handlers.Requests).Methods("GET")
+
 	fmt.Println("starting server at :" + port)
-	http.ListenAndServe(":" + port, r)
+	// Запуск сервера
+	http.ListenAndServe(":"+port, r)
 }
 
-// не используйте такой код в прошакшене
-// ошибка должна всегда явно обрабатываться
 func __err_panic(err error) {
 	if err != nil {
 		panic(err)
 	}
 }
-

@@ -11,60 +11,65 @@
 </head>
 <body>
 <div class="container" style="width: 800px">
-<div class="top" style="text-align: center">
-    <h1 style="text-align: center">Sparrow's News</h1>
-    <table class="table">
-        <tbody>
-        {{if .Authorized}}
-        <tr>
-            <td style="font-size: medium">Hello: <b>{{.User}}</b><br>Your tags: {{range .Tags}}<i>{{.}} </i>{{end}}</td>
-            <td><a href="/logout" class="btn btn-outline-danger">Logout</a> or <a href="/edituser" class="btn btn-outline-warning">Edit your
-                account</a></td>
-        </tr>
-        {{else}}
-        <tr>
-            <td style="font-size: medium"><b>Welcome to the Sparrow's News</b><br>Start your search right now</td>
-            <td><a href="/auth" class="btn btn-outline-success">Sign In</a> or <a href="/reg" class="btn btn-outline-secondary">Sign Up</a></td>
-        </tr>
-        {{end}}
-        </tbody>
-    </table>
+    <div class="top" style="text-align: center">
+        <h1 style="text-align: center">Sparrow's News</h1>
+        <table class="table">
+            <tbody>
+            {{if .Authorized}}
+            <tr>
+                <td style="font-size: medium">Hello: <b>{{.User}}</b><br>
+                    Your tags: {{range .Tags}}<i>{{.}} </i>{{end}}</td>
+                <td><a href="/logout" class="btn btn-outline-danger">Logout</a>
+                    or
+                    <a href="/edituser" class="btn btn-outline-warning">Edit your account</a></td>
+            </tr>
+            {{else}}
+            <tr>
+                <td style="font-size: medium"><b>Welcome to the Sparrow's News</b><br>Start your search right now</td>
+                <td><a href="/auth" class="btn btn-outline-success">Sign In</a> or <a href="/reg"
+                                                                                      class="btn btn-outline-secondary">Sign
+                    Up</a></td>
+            </tr>
+            {{end}}
+            </tbody>
+        </table>
 
-    <form action="/" method="post">
-    <div class="input-group mb-3" >
+        <form action="/" method="post">
+            <div class="input-group mb-3">
 
-        <input type="text" name="search" class="form-control" placeholder="Enter your tag" aria-label="Enter tag" aria-describedby="basic-addon2">
-        <div class="input-group-append">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
+                <input type="text" name="search" class="form-control" placeholder="Enter your tag"
+                       aria-label="Enter tag" aria-describedby="basic-addon2">
+                <div class="input-group-append">
+                    <button class="btn btn-outline-secondary" type="submit">Search</button>
+                </div>
+
+            </div>
+        </form>
 
     </div>
-    </form>
 
-</div>
+    <div class="container">
 
-<div class="container">
-
-{{if .Articles}}
-    <table class="table">
-        <thead>
-        <tr>
-            <th>Title</th>
-            <th>Link</th>
-        </tr>
-        </thead>
-        <tbody>
-        {{range .Articles}}
-        <tr>
-            <td>{{.Title}}</td>
-            <td>
-                <a href="{{.Href}}" class="btn btn-primary">Read</a>
-            </td>
-        </tr>
-        {{end}}
-        </tbody>
-    </table>
-{{end}}
-</div>
+    {{if .Articles}}
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Title</th>
+                <th>Link</th>
+            </tr>
+            </thead>
+            <tbody>
+            {{range .Articles}}
+            <tr>
+                <td>{{.Title}}</td>
+                <td>
+                    <a href="{{.Href}}" class="btn btn-primary">Read</a>
+                </td>
+            </tr>
+            {{end}}
+            </tbody>
+        </table>
+    {{end}}
+    </div>
 </body>
 </html>

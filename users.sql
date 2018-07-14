@@ -13,4 +13,4 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 INSERT INTO `users` (`id`, `login`, `password`, `tags`) VALUES
-(1,	'user1',	'4d251f29c62b8cd75b2e97f55e534c0f3c1b1d67380b5b5bed5d143b3927962auser1',	'java, go');
+(1,	'user1',	'4d251f29c62b8cd75b2e97f55e534c0f3c1b1d67380b5b5bed5d143b3927962auser1', 'java, go');
